@@ -19,13 +19,24 @@ pub struct TweenComponent<T: Copy> {
 impl<T: Copy> TweenComponent<T>
 where TweenValue<T>: Linear<f32>
 {
-    pub fn end(&self) -> T { self.spline.clamped_sample(1.1).unwrap().0 }
+    pub fn end(&self) -> T { self.spline.clamped_sample(1.0).unwrap().0 }
+
+    pub fn retarget(&mut self, target: T)
+        where T: PartialEq,
+    {
+        if target != self.end() {
+            let progress = self.timer.elapsed / self.timer.duration;
+            let new_start = Key::new(progress, TweenValue(self.spline.clamped_sample(progress).unwrap().0), Interpolation::Linear);
+            let new_end = Key::new(1f32, TweenValue(target), Interpolation::Linear);
+            self.spline = Spline::from_vec(vec![new_start, new_end]);
+        }
+    }
 }
 
 pub trait Tween: Sized + Copy {
     fn tween(start: Self, end: Self, duration: Duration) -> TweenComponent<Self> {
-        let start = Key::new(0., TweenValue(start), Interpolation::Linear);
-        let end = Key::new(1., TweenValue(end), Interpolation::default());
+        let start = Key::new(0f32, TweenValue(start), Interpolation::Linear);
+        let end = Key::new(1f32, TweenValue(end), Interpolation::default());
         TweenComponent {
             spline: Spline::from_vec(vec![start, end]),
             timer: Timer::new(duration, false),
