@@ -8,65 +8,70 @@ use bevy::prelude::*;
 
 #[derive(Copy, Clone)]
 pub struct TweenValue<T: Copy>(pub T);
-pub struct TweenComponent<T: Copy> {
-    spline: Spline<f32, TweenValue<T>>,
-    timer: Timer,
+pub struct Tween<T: Copy> {
+    inner: Option<(Spline<f32, TweenValue<T>>, Timer)>
 }
 
-impl<T: Copy> TweenComponent<T>
+impl<T: Copy> Tween<T>
 where
     TweenValue<T>: Linear<f32>,
 {
-    pub fn end(&self) -> T { self.spline.clamped_sample(1.0).unwrap().0 }
+    pub fn run(&mut self, start: T, end: T, duration: Duration) {
+        let start = Key::new(0f32, TweenValue(start), Interpolation::Linear);
+        let end = Key::new(1f32, TweenValue(end), Interpolation::default());
+        self.inner = Some((Spline::from_vec(vec![start, end]), Timer::new(duration, false)));
+    }
+
+    pub fn target(&self) -> Option<T> {
+        self.inner.as_ref().map(|(spline, _)| spline.clamped_sample(1.0).unwrap().0)
+    }
 
     pub fn retarget(&mut self, target: T)
     where
         T: PartialEq,
     {
-        if target != self.end() {
-            let progress = self.timer.elapsed / self.timer.duration;
-            let new_start = Key::new(
-                progress,
-                TweenValue(self.spline.clamped_sample(progress).unwrap().0),
-                Interpolation::Linear,
-            );
-            let new_end = Key::new(1f32, TweenValue(target), Interpolation::Linear);
-            self.spline = Spline::from_vec(vec![new_start, new_end]);
+        if let Some((spline, timer)) = &mut self.inner {
+            let end = spline.clamped_sample(1.0).unwrap().0;
+            if target != end {
+                let progress = timer.elapsed / timer.duration;
+                let new_start = Key::new(
+                    progress,
+                    TweenValue(spline.clamped_sample(progress).unwrap().0),
+                    Interpolation::Linear,
+                );
+                let new_end = Key::new(1f32, TweenValue(target), Interpolation::Linear);
+                *spline = Spline::from_vec(vec![new_start, new_end]);
+            }
         }
     }
 }
 
-pub trait Tween: Sized + Copy {
-    fn tween(start: Self, end: Self, duration: Duration) -> TweenComponent<Self> {
-        let start = Key::new(0f32, TweenValue(start), Interpolation::Linear);
-        let end = Key::new(1f32, TweenValue(end), Interpolation::default());
-        TweenComponent {
-            spline: Spline::from_vec(vec![start, end]),
-            timer: Timer::new(duration, false),
-        }
-    }
-    fn tween_to(self, target: Self, duration: Duration) -> TweenComponent<Self> {
-        Self::tween(self, target, duration)
+impl<T: Copy> Default for Tween<T> {
+    fn default() -> Self {
+        Self { inner: None, }
     }
 }
 
-impl<T: Copy> Tween for T where TweenValue<T>: Interpolate<f32> {}
-
-pub fn tween_system<T: Tween + Component>(
-    mut commands: Commands,
+pub fn tween_system<T: Copy + Component>(
     time: Res<Time>,
-    entity: Entity,
-    mut tween: Mut<TweenComponent<T>>,
+    mut tween: Mut<Tween<T>>,
     mut object: Mut<T>,
 ) where
     TweenValue<T>: Interpolate<f32>,
 {
-    tween.timer.tick(time.delta_seconds);
-    let progress = tween.timer.elapsed / tween.timer.duration;
-    *object = tween.spline.clamped_sample(progress).unwrap().0;
-    if tween.timer.finished {
-        commands.remove_one::<TweenComponent<T>>(entity);
+    let remove = if let Some((spline, timer)) = &mut tween.inner {
+        timer.tick(time.delta_seconds);
+        let progress = timer.elapsed / timer.duration;
+        *object = spline.clamped_sample(progress).unwrap().0;
+        timer.finished
+    } else {
+        false
+    };
+
+    if remove {
+        tween.inner = None;
     }
+
 }
 
 impl<T: Copy> Interpolate<f32> for TweenValue<T>
