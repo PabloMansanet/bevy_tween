@@ -16,6 +16,12 @@ pub struct TweenComponent<T: Copy> {
     timer: Timer,
 }
 
+impl<T: Copy> TweenComponent<T>
+where TweenValue<T>: Linear<f32>
+{
+    pub fn end(&self) -> T { self.spline.clamped_sample(1.1).unwrap().0 }
+}
+
 pub trait Tween: Sized + Copy {
     fn tween(start: Self, end: Self, duration: Duration) -> TweenComponent<Self> {
         let start = Key::new(0., TweenValue(start), Interpolation::Linear);
@@ -58,16 +64,16 @@ impl<T: Copy> Interpolate<f32> for TweenValue<T>
 }
 
 impl Linear<f32> for TweenValue<Translation> {
-    fn outer_mul(self, t: f32) -> Self { Self(Translation::from(self.0.0 * t)) }
-    fn outer_div(self, t: f32) -> Self { Self(Translation::from(self.0.0 / t)) }
+    fn outer_mul(self, t: f32) -> Self { Self(Translation::from((self.0).0 * t)) }
+    fn outer_div(self, t: f32) -> Self { Self(Translation::from((self.0).0 / t)) }
 }
 
 impl Add for TweenValue<Translation> {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self(Translation::from(self.0.0 + rhs.0.0)) }
+    fn add(self, rhs: Self) -> Self::Output { Self(Translation::from((self.0).0 + (rhs.0).0)) }
 }
 
 impl Sub for TweenValue<Translation> {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { Self(Translation::from(self.0.0 - rhs.0.0)) }
+    fn sub(self, rhs: Self) -> Self::Output { Self(Translation::from((self.0).0 - (rhs.0).0)) }
 }
