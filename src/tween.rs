@@ -2,10 +2,7 @@ use splines::{
     interpolate::{cubic_bezier_def, quadratic_bezier_def, Interpolate, Linear},
     Interpolation, Key, Spline,
 };
-use std::{
-    ops::{Add, Sub},
-    time::Duration,
-};
+use std::time::Duration;
 
 use bevy::prelude::*;
 
@@ -17,16 +14,22 @@ pub struct TweenComponent<T: Copy> {
 }
 
 impl<T: Copy> TweenComponent<T>
-where TweenValue<T>: Linear<f32>
+where
+    TweenValue<T>: Linear<f32>,
 {
     pub fn end(&self) -> T { self.spline.clamped_sample(1.0).unwrap().0 }
 
     pub fn retarget(&mut self, target: T)
-        where T: PartialEq,
+    where
+        T: PartialEq,
     {
         if target != self.end() {
             let progress = self.timer.elapsed / self.timer.duration;
-            let new_start = Key::new(progress, TweenValue(self.spline.clamped_sample(progress).unwrap().0), Interpolation::Linear);
+            let new_start = Key::new(
+                progress,
+                TweenValue(self.spline.clamped_sample(progress).unwrap().0),
+                Interpolation::Linear,
+            );
             let new_end = Key::new(1f32, TweenValue(target), Interpolation::Linear);
             self.spline = Spline::from_vec(vec![new_start, new_end]);
         }
@@ -67,24 +70,14 @@ pub fn tween_system<T: Tween + Component>(
 }
 
 impl<T: Copy> Interpolate<f32> for TweenValue<T>
-    where TweenValue<T>: Linear<f32>,
+where
+    TweenValue<T>: Linear<f32>,
 {
     fn lerp(a: Self, b: Self, t: f32) -> Self { a.outer_mul(1. - t) + b.outer_mul(t) }
-    fn quadratic_bezier(a: Self, u: Self, b: Self, t: f32) -> Self { quadratic_bezier_def(a, u, b, t) }
-    fn cubic_bezier(a: Self, u: Self, v: Self, b: Self, t: f32) -> Self { cubic_bezier_def(a, u, v, b, t) }
-}
-
-impl Linear<f32> for TweenValue<Translation> {
-    fn outer_mul(self, t: f32) -> Self { Self(Translation::from((self.0).0 * t)) }
-    fn outer_div(self, t: f32) -> Self { Self(Translation::from((self.0).0 / t)) }
-}
-
-impl Add for TweenValue<Translation> {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self(Translation::from((self.0).0 + (rhs.0).0)) }
-}
-
-impl Sub for TweenValue<Translation> {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { Self(Translation::from((self.0).0 - (rhs.0).0)) }
+    fn quadratic_bezier(a: Self, u: Self, b: Self, t: f32) -> Self {
+        quadratic_bezier_def(a, u, b, t)
+    }
+    fn cubic_bezier(a: Self, u: Self, v: Self, b: Self, t: f32) -> Self {
+        cubic_bezier_def(a, u, v, b, t)
+    }
 }
